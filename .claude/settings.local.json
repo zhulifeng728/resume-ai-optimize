@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "WebSearch",
+      "WebFetch(domain:www.laoyujianli.com)",
+      "WebFetch(domain:talencat.cn)"
+    ]
+  }
+}
