@@ -1,0 +1,27 @@
+{
+  "name": "resume-ai-optimize",
+  "version": "0.1.0",
+  "private": true,
+  "description": "AI-powered resume optimization platform",
+  "scripts": {
+    "dev": "pnpm build:shared && pnpm -r --parallel dev",
+    "dev:backend": "pnpm build:shared && pnpm --filter @resume-ai/backend dev",
+    "dev:frontend": "pnpm build:shared && pnpm --filter @resume-ai/frontend dev",
+    "build": "pnpm build:shared && pnpm -r build",
+    "build:shared": "pnpm --filter @resume-ai/shared build",
+    "build:backend": "pnpm build:shared && pnpm --filter @resume-ai/backend build",
+    "build:frontend": "pnpm build:shared && pnpm --filter @resume-ai/frontend build",
+    "lint": "pnpm -r lint",
+    "format": "prettier --write \"packages/*/src/**/*.{ts,vue}\"",
+    "docker:up": "docker compose up -d",
+    "docker:down": "docker compose down",
+    "docker:prod": "docker compose -f docker-compose.prod.yml up --build -d",
+    "db:migrate": "pnpm --filter @resume-ai/backend prisma:migrate",
+    "db:generate": "pnpm --filter @resume-ai/backend prisma:generate",
+    "db:studio": "pnpm --filter @resume-ai/backend prisma:studio"
+  },
+  "engines": {
+    "node": ">=18.0.0",
+    "pnpm": ">=8.0.0"
+  }
+}

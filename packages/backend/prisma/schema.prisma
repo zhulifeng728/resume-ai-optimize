@@ -1,0 +1,136 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum ResumeStatus {
+  UPLOADED
+  PARSING
+  PARSED
+  PARSE_FAILED
+}
+
+enum JobSource {
+  MANUAL
+  CRAWLED
+}
+
+enum LlmProvider {
+  NVIDIA_NIM
+  DEEPSEEK
+  OPENAI
+  CLAUDE
+  CUSTOM
+}
+
+model User {
+  id           String   @id @default(uuid())
+  email        String   @unique
+  passwordHash String   @map("password_hash")
+  name         String
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  resumes    Resume[]
+  jobs       Job[]
+  apiKeys    ApiKey[]
+  reviewDocs ReviewDoc[]
+
+  @@map("users")
+}
+
+model Resume {
+  id           String       @id @default(uuid())
+  userId       String       @map("user_id")
+  title        String
+  originalText String?      @map("original_text") @db.Text
+  parsedData   Json?        @map("parsed_data")
+  fileUrl      String?      @map("file_url")
+  fileName     String?      @map("file_name")
+  status       ResumeStatus @default(UPLOADED)
+  createdAt    DateTime     @default(now()) @map("created_at")
+  updatedAt    DateTime     @updatedAt @map("updated_at")
+
+  user       User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  versions   ResumeVersion[]
+  reviewDocs ReviewDoc[]
+
+  @@map("resumes")
+}
+
+model ResumeVersion {
+  id            String   @id @default(uuid())
+  resumeId      String   @map("resume_id")
+  content       String   @db.Text
+  diffData      Json?    @map("diff_data")
+  versionNumber Int      @map("version_number")
+  aiModel       String   @map("ai_model")
+  jobId         String?  @map("job_id")
+  isSelected    Boolean  @default(false) @map("is_selected")
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  resume     Resume      @relation(fields: [resumeId], references: [id], onDelete: Cascade)
+  reviewDocs ReviewDoc[]
+
+  @@map("resume_versions")
+}
+
+model Job {
+  id           String    @id @default(uuid())
+  userId       String    @map("user_id")
+  title        String
+  company      String?
+  location     String?
+  salary       String?
+  description  String    @db.Text
+  parsedSkills Json?     @map("parsed_skills")
+  source       JobSource @default(MANUAL)
+  sourceUrl    String?   @map("source_url")
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("jobs")
+}
+
+model ApiKey {
+  id           String      @id @default(uuid())
+  userId       String      @map("user_id")
+  provider     LlmProvider
+  name         String
+  encryptedKey String      @map("encrypted_key")
+  keyIv        String      @map("key_iv")
+  keyTag       String      @map("key_tag")
+  baseUrl      String?     @map("base_url")
+  modelId      String?     @map("model_id")
+  isDefault    Boolean     @default(false) @map("is_default")
+  createdAt    DateTime    @default(now()) @map("created_at")
+  updatedAt    DateTime    @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("api_keys")
+}
+
+model ReviewDoc {
+  id              String   @id @default(uuid())
+  userId          String   @map("user_id")
+  resumeId        String   @map("resume_id")
+  resumeVersionId String?  @map("resume_version_id")
+  content         String   @db.Text
+  skills          Json
+  aiModel         String   @map("ai_model")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  user          User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  resume        Resume         @relation(fields: [resumeId], references: [id], onDelete: Cascade)
+  resumeVersion ResumeVersion? @relation(fields: [resumeVersionId], references: [id])
+
+  @@map("review_docs")
+}
