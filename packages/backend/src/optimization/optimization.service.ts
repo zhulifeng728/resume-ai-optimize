@@ -1,4 +1,5 @@
-import { Injectable, BadRequestException } from '@nestjs/common';
+import { Injectable, BadRequestException, Logger } from '@nestjs/common';
+import { OptimizationStatus } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { AiGatewayService } from '../ai-gateway/ai-gateway.service';
 import { ResumeService } from '../resume/resume.service';
@@ -7,6 +8,8 @@ import { buildResumeOptimizePrompt } from '../ai-gateway/prompts/resume-optimize
 
 @Injectable()
 export class OptimizationService {
+  private readonly logger = new Logger(OptimizationService.name);
+
   constructor(
     private prisma: PrismaService,
     private aiGateway: AiGatewayService,
@@ -22,19 +25,6 @@ export class OptimizationService {
       throw new BadRequestException('Resume has no text content. Please parse or enter text first.');
     }
 
-    const messages = buildResumeOptimizePrompt(resume.originalText, job.description);
-    const result = await this.aiGateway.complete(userId, apiKeyId, messages, { temperature: 0.7, maxTokens: 4096 });
-
-    let parsed: any;
-    try {
-      // Try to extract JSON from the response
-      const jsonMatch = result.content.match(/\{[\s\S]*\}/);
-      parsed = jsonMatch ? JSON.parse(jsonMatch[0]) : { optimizedResume: result.content, sections: [], matchScore: 0, suggestions: [] };
-    } catch {
-      parsed = { optimizedResume: result.content, sections: [], matchScore: 0, suggestions: [] };
-    }
-
-    // Get next version number
     const lastVersion = await this.prisma.resumeVersion.findFirst({
       where: { resumeId },
       orderBy: { versionNumber: 'desc' },
@@ -43,20 +33,64 @@ export class OptimizationService {
     const version = await this.prisma.resumeVersion.create({
       data: {
         resumeId,
-        content: parsed.optimizedResume || result.content,
-        diffData: { sections: parsed.sections, matchScore: parsed.matchScore, suggestions: parsed.suggestions },
+        content: '',
         versionNumber: (lastVersion?.versionNumber || 0) + 1,
-        aiModel: result.model,
+        aiModel: 'pending',
         jobId,
+        status: OptimizationStatus.PENDING,
       },
     });
 
-    return {
-      id: version.id,
-      resumeVersionId: version.id,
-      status: 'completed',
-      version,
-    };
+    setImmediate(() =>
+      this._runOptimization(version.id, userId, apiKeyId, resume.originalText!, job.description)
+        .catch(err => this.logger.error('Unhandled optimization error', err))
+    );
+
+    return { versionId: version.id, status: OptimizationStatus.PENDING };
+  }
+
+  private async _runOptimization(
+    versionId: string,
+    userId: string,
+    apiKeyId: string,
+    resumeText: string,
+    jobDescription: string,
+  ) {
+    try {
+      await this.prisma.resumeVersion.update({
+        where: { id: versionId },
+        data: { status: OptimizationStatus.PROCESSING },
+      });
+
+      const messages = buildResumeOptimizePrompt(resumeText, jobDescription);
+      const result = await this.aiGateway.complete(userId, apiKeyId, messages, { temperature: 0.7, maxTokens: 4096 });
+
+      let parsed: any;
+      try {
+        const jsonMatch = result.content.match(/\{[\s\S]*\}/);
+        parsed = jsonMatch ? JSON.parse(jsonMatch[0]) : { optimizedResume: result.content };
+      } catch {
+        parsed = { optimizedResume: result.content };
+      }
+
+      await this.prisma.resumeVersion.update({
+        where: { id: versionId },
+        data: {
+          content: parsed.optimizedResume || result.content,
+          diffData: { sections: parsed.sections, matchScore: parsed.matchScore, suggestions: parsed.suggestions },
+          aiModel: result.model,
+          status: OptimizationStatus.COMPLETED,
+        },
+      });
+    } catch (err: any) {
+      await this.prisma.resumeVersion.update({
+        where: { id: versionId },
+        data: {
+          status: OptimizationStatus.FAILED,
+          errorMessage: err?.message || 'Unknown error',
+        },
+      });
+    }
   }
 
   async *optimizeStream(userId: string, resumeId: string, jobId: string, apiKeyId: string): AsyncIterable<string> {
@@ -88,6 +122,7 @@ export class OptimizationService {
         versionNumber: (lastVersion?.versionNumber || 0) + 1,
         aiModel: 'streamed',
         jobId,
+        status: OptimizationStatus.COMPLETED,
       },
     });
   }
