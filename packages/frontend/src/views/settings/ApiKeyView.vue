@@ -64,7 +64,7 @@
                 active-text="启用"
                 inactive-text=""
                 :loading="togglingId === key.id"
-                @change="(val: boolean) => handleToggleDefault(key, val)"
+                @change="(val: string | number | boolean) => handleToggleDefault(key, Boolean(val))"
               />
             </div>
             <div class="key-card-actions">
@@ -225,10 +225,11 @@ function getProviderName(provider: LlmProvider) {
   return PROVIDER_CONFIGS[provider]?.name || provider;
 }
 
-function providerTagType(provider: LlmProvider) {
-  const map: Record<string, string> = {
+type TagType = 'success' | 'warning' | 'info' | 'danger' | 'primary';
+function providerTagType(provider: LlmProvider): TagType {
+  const map: Record<string, TagType> = {
     [LlmProvider.NVIDIA_NIM]: 'success',
-    [LlmProvider.OPENAI]: '',
+    [LlmProvider.OPENAI]: 'primary',
     [LlmProvider.CLAUDE]: 'warning',
     [LlmProvider.DEEPSEEK]: 'info',
     [LlmProvider.CUSTOM]: 'danger',

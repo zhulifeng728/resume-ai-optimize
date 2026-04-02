@@ -49,6 +49,20 @@ export class OptimizationService {
     return { versionId: version.id, status: OptimizationStatus.PENDING };
   }
 
+  async cancel(userId: string, versionId: string) {
+    const version = await this.prisma.resumeVersion.findFirst({
+      where: { id: versionId, resume: { userId } },
+    });
+    if (!version) throw new BadRequestException('Version not found');
+    if (version.status !== OptimizationStatus.PENDING && version.status !== OptimizationStatus.PROCESSING) {
+      throw new BadRequestException('Only PENDING or PROCESSING tasks can be cancelled');
+    }
+    return this.prisma.resumeVersion.update({
+      where: { id: versionId },
+      data: { status: OptimizationStatus.CANCELLED },
+    });
+  }
+
   private async _runOptimization(
     versionId: string,
     userId: string,

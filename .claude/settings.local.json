@@ -3,7 +3,35 @@
     "allow": [
       "WebSearch",
       "WebFetch(domain:www.laoyujianli.com)",
-      "WebFetch(domain:talencat.cn)"
+      "WebFetch(domain:talencat.cn)",
+      "Bash(test:*)",
+      "Bash(pnpm install:*)",
+      "Bash(pnpm approve-builds:*)",
+      "Bash(pnpm rebuild:*)",
+      "Bash(pnpm prisma:*)",
+      "Bash(pnpm list:*)",
+      "Bash(pnpm:*)",
+      "Bash(docker:*)",
+      "Bash(open:*)",
+      "Bash(brew services:*)",
+      "Bash(osascript:*)",
+      "Bash(rm:*)",
+      "Bash(npm rebuild:*)",
+      "Bash(curl:*)",
+      "Bash(lsof:*)",
+      "Bash(cp:*)",
+      "Bash(grep:*)",
+      "Bash(npx tsc:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git push:*)",
+      "Bash(python3:*)",
+      "Bash(ls packages/backend/.env*)",
+      "Bash(npx prisma:*)",
+      "Bash(xargs ls:*)",
+      "Bash(npx vue-tsc:*)",
+      "Bash(node:*)",
+      "Bash(git rm:*)"
     ]
   }
 }

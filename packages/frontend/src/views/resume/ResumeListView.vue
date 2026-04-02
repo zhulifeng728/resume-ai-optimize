@@ -67,11 +67,11 @@
           <el-upload ref="uploadRef" drag :auto-upload="false" :limit="1"
             :on-exceed="() => ElMessage.warning('一次只能上传一个文件')"
             :on-change="(f: UploadFile) => selectedFile = f.raw || null"
-            accept=".pdf,.docx,.doc,.png,.jpg,.jpeg">
+            accept=".md,.pdf,.docx,.doc,.png,.jpg,.jpeg">
             <el-icon class="el-icon--upload"><UploadFilled /></el-icon>
             <div class="el-upload__text">拖拽文件到此处或<em>点击上传</em></div>
             <template #tip>
-              <div class="el-upload__tip">支持 PDF、DOCX、DOC、PNG、JPG 格式</div>
+              <div class="el-upload__tip">支持 <strong>Markdown (.md)</strong>、PDF、DOCX、图片格式，PDF/DOCX 将自动转换为 Markdown</div>
             </template>
           </el-upload>
         </el-form-item>
@@ -83,14 +83,15 @@
     </el-dialog>
 
     <!-- 手动创建弹窗 -->
-    <el-dialog v-model="manualDialogVisible" title="手动创建简历" width="680px">
+    <el-dialog v-model="manualDialogVisible" title="手动创建简历（Markdown）" width="780px" :close-on-click-modal="false">
       <el-form :model="manualForm" label-position="top">
         <el-form-item label="简历标题" required>
           <el-input v-model="manualForm.title" placeholder="请输入简历标题" />
         </el-form-item>
-        <el-form-item label="简历内容" required>
-          <el-input v-model="manualForm.originalText" type="textarea" :rows="14"
-            placeholder="粘贴或输入你的简历内容..." />
+        <el-form-item label="简历内容（Markdown 格式）" required>
+          <div class="md-editor-wrap">
+            <div id="manual-md-editor"></div>
+          </div>
         </el-form-item>
       </el-form>
       <template #footer>
@@ -102,12 +103,15 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue';
+import { ref, computed, onMounted, watch, nextTick } from 'vue';
 import { Upload, EditPen, UploadFilled } from '@element-plus/icons-vue';
 import { ElMessage, ElMessageBox, type UploadInstance, type UploadFile, type UploadRawFile } from 'element-plus';
+import Vditor from 'vditor';
+import 'vditor/dist/index.css';
 import { useResumeStore } from '@/stores/resume';
 import { resumeApi } from '@/api/resume';
-import { ResumeStatus, type Resume } from '@resume-ai/shared';
+import { ResumeStatus } from '@/constants/providers';
+import type { Resume } from '@resume-ai/shared';
 
 const resumeStore = useResumeStore();
 
@@ -119,11 +123,33 @@ const uploadRef = ref<UploadInstance>();
 const selectedFile = ref<UploadRawFile | null>(null);
 const uploadTitle = ref('');
 const manualForm = ref({ title: '', originalText: '' });
+let vditorInstance: Vditor | null = null;
 
 const atLimit = computed(() => resumeStore.total >= 5);
 
-function statusTagType(status: ResumeStatus) {
-  const map: Record<ResumeStatus, string> = {
+// 打开手动创建弹窗时初始化 Vditor
+watch(manualDialogVisible, async (val) => {
+  if (val) {
+    await nextTick();
+    vditorInstance = new Vditor('manual-md-editor', {
+      height: 420,
+      mode: 'sv',
+      toolbarConfig: { pin: true },
+      placeholder: '使用 Markdown 格式输入简历内容...\n\n## 基本信息\n\n姓名：\n\n## 工作经历\n\n...',
+      cache: { enable: false },
+      after: () => {
+        vditorInstance?.setValue(manualForm.value.originalText);
+      },
+    });
+  } else {
+    vditorInstance?.destroy();
+    vditorInstance = null;
+  }
+});
+
+type TagType = 'success' | 'warning' | 'info' | 'danger' | 'primary';
+function statusTagType(status: ResumeStatus): TagType {
+  const map: Record<ResumeStatus, TagType> = {
     [ResumeStatus.UPLOADED]: 'info',
     [ResumeStatus.PARSING]: 'warning',
     [ResumeStatus.PARSED]: 'success',
@@ -168,12 +194,13 @@ async function handleUpload() {
 }
 
 async function handleManualCreate() {
-  if (!manualForm.value.title.trim() || !manualForm.value.originalText.trim()) {
+  const content = vditorInstance?.getValue() ?? '';
+  if (!manualForm.value.title.trim() || !content.trim()) {
     ElMessage.warning('标题和内容不能为空'); return;
   }
   creating.value = true;
   try {
-    await resumeApi.create({ title: manualForm.value.title, originalText: manualForm.value.originalText });
+    await resumeApi.create({ title: manualForm.value.title, originalText: content });
     ElMessage.success('简历创建成功');
     manualDialogVisible.value = false;
     manualForm.value = { title: '', originalText: '' };
@@ -311,5 +338,12 @@ onMounted(() => resumeStore.fetchResumes(1, 10));
   justify-content: center;
   gap: 4px;
   flex-shrink: 0;
+}
+
+.md-editor-wrap {
+  width: 100%;
+  border: 1px solid #dcdfe6;
+  border-radius: 4px;
+  overflow: hidden;
 }
 </style>

@@ -84,8 +84,10 @@ const renderedContent = computed(() => {
   const renderer = new marked.Renderer();
   const headings: TocItem[] = [];
 
-  renderer.heading = function ({ text, depth }: { text: string; depth: number }) {
-    const cleanText = text.replace(/<[^>]*>/g, '');
+  renderer.heading = function (this: unknown, text: string | { text: string; depth: number }, level?: number) {
+    const actualText = typeof text === 'object' ? text.text : text;
+    const actualDepth = typeof text === 'object' ? text.depth : level!;
+    const cleanText = actualText.replace(/<[^>]*>/g, '');
     const slug = cleanText
       .toLowerCase()
       .replace(/[^\w\s-]/g, '')
@@ -93,11 +95,11 @@ const renderedContent = computed(() => {
       .replace(/-+/g, '-')
       .trim();
 
-    if (depth === 2 || depth === 3) {
-      headings.push({ id: slug, text: cleanText, level: depth });
+    if (actualDepth === 2 || actualDepth === 3) {
+      headings.push({ id: slug, text: cleanText, level: actualDepth });
     }
 
-    return `<h${depth} id="${slug}">${text}</h${depth}>`;
+    return `<h${actualDepth} id="${slug}">${actualText}</h${actualDepth}>`;
   };
 
   const html = marked(doc.value.content, { renderer }) as string;

@@ -62,14 +62,17 @@
               <template #default="{ row }">
                 <el-tag v-if="row.status === 'PENDING'" type="info" size="small">等待中</el-tag>
                 <el-tag v-else-if="row.status === 'PROCESSING'" type="warning" size="small">处理中</el-tag>
-                <el-tag v-else-if="row.status === 'FAILED'" type="danger" size="small">失败</el-tag>
+                <el-tooltip v-else-if="row.status === 'FAILED'" :content="row.errorMessage || '未知错误'" placement="top">
+                  <el-tag type="danger" size="small" style="cursor:pointer">失败</el-tag>
+                </el-tooltip>
+                <el-tag v-else-if="row.status === 'CANCELLED'" type="info" size="small">已取消</el-tag>
                 <template v-else>
                   <el-tag v-if="row.isSelected" type="success" size="small">已采用</el-tag>
                   <el-tag v-else type="primary" size="small">已完成</el-tag>
                 </template>
               </template>
             </el-table-column>
-            <el-table-column label="操作" width="180">
+            <el-table-column label="操作" width="200">
               <template #default="{ row }">
                 <el-button
                   text type="primary" size="small"
@@ -81,6 +84,11 @@
                   text type="success" size="small"
                   @click="selectVersion(row)"
                 >采用此版本</el-button>
+                <el-button
+                  v-if="row.status === 'PENDING' || row.status === 'PROCESSING'"
+                  text type="danger" size="small"
+                  @click="cancelVersion(row)"
+                >取消</el-button>
               </template>
             </el-table-column>
           </el-table>
@@ -121,6 +129,7 @@ import { useResumeStore } from '@/stores/resume';
 import { useApiKeyStore } from '@/stores/api-key';
 import { resumeApi } from '@/api/resume';
 import { reviewDocApi } from '@/api/review-doc';
+import { optimizationApi } from '@/api/optimization';
 import { ResumeStatus } from '@/constants/providers';
 import type { ResumeVersion } from '@resume-ai/shared';
 
@@ -233,6 +242,14 @@ async function handleGenerateReviewDoc() {
   } finally {
     generatingDoc.value = false;
   }
+}
+
+async function cancelVersion(version: ResumeVersion) {
+  try {
+    await optimizationApi.cancel(version.id);
+    await resumeStore.fetchVersions(resumeId.value);
+    ElMessage.success('已取消');
+  } catch { }
 }
 
 function viewVersion(version: ResumeVersion) {

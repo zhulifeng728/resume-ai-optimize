@@ -10,6 +10,7 @@ export enum OptimizationStatus {
   PROCESSING = 'PROCESSING',
   COMPLETED = 'COMPLETED',
   FAILED = 'FAILED',
+  CANCELLED = 'CANCELLED',
 }
 
 export interface Resume {

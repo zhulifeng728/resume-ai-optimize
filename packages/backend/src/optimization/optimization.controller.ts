@@ -1,4 +1,4 @@
-import { Controller, Post, Body, Param, Sse, MessageEvent } from '@nestjs/common';
+import { Controller, Post, Patch, Body, Param, Sse, MessageEvent } from '@nestjs/common';
 import { Observable, from, map, catchError, of } from 'rxjs';
 import { OptimizationService } from './optimization.service';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
@@ -16,6 +16,14 @@ export class OptimizationController {
     body: { resumeId: string; jobId: string; apiKeyId: string },
   ) {
     return this.optimizationService.optimize(userId, body.resumeId, body.jobId, body.apiKeyId);
+  }
+
+  @Patch(':versionId/cancel')
+  async cancel(
+    @CurrentUser('id') userId: string,
+    @Param('versionId') versionId: string,
+  ) {
+    return this.optimizationService.cancel(userId, versionId);
   }
 
   @Sse(':resumeId/:jobId/:apiKeyId/stream')

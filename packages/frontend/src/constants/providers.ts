@@ -40,3 +40,11 @@ export const PROVIDER_CONFIGS: Record<LlmProvider, ProviderConfig> = {
     defaultModel: '',
   },
 };
+
+// 与 shared/types/resume.ts 保持一致
+export enum ResumeStatus {
+  UPLOADED = 'UPLOADED',
+  PARSING = 'PARSING',
+  PARSED = 'PARSED',
+  PARSE_FAILED = 'PARSE_FAILED',
+}
