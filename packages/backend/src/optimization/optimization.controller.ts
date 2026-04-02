@@ -18,7 +18,7 @@ export class OptimizationController {
     return this.optimizationService.optimize(userId, body.resumeId, body.jobId, body.apiKeyId);
   }
 
-  @Patch(':versionId/cancel')
+  @Patch('versions/:versionId/cancel')
   async cancel(
     @CurrentUser('id') userId: string,
     @Param('versionId') versionId: string,

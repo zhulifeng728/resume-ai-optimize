@@ -5,5 +5,5 @@ export const optimizationApi = {
   create: (data: OptimizationRequest) =>
     client.post<unknown, { data: OptimizationSubmitResult }>('/optimizations', data),
   cancel: (versionId: string) =>
-    client.patch(`/optimizations/${versionId}/cancel`),
+    client.patch(`/optimizations/versions/${versionId}/cancel`),
 };
