@@ -4,9 +4,8 @@ import { BaseLlmProvider, LlmCompletionOptions, LlmCompletionResult } from './ba
 
 @Injectable()
 export class OpenAiCompatibleProvider extends BaseLlmProvider {
-  private getOpenRouterExtra(baseUrl?: string): Record<string, unknown> {
-    if (!baseUrl?.includes('openrouter.ai')) return {};
-    return { zdr: false, provider_requirements: { does_train_prompts: true } };
+  private isOpenRouter(baseUrl?: string): boolean {
+    return !!baseUrl?.includes('openrouter.ai');
   }
 
   async complete(options: LlmCompletionOptions): Promise<LlmCompletionResult> {
@@ -15,13 +14,19 @@ export class OpenAiCompatibleProvider extends BaseLlmProvider {
       baseURL: options.baseUrl,
     });
 
-    const response = await client.chat.completions.create({
+    const body: Record<string, unknown> = {
       model: options.model,
       messages: options.messages,
       temperature: options.temperature ?? 0.7,
       max_tokens: options.maxTokens ?? 4096,
-      ...this.getOpenRouterExtra(options.baseUrl),
-    } as any);
+    };
+
+    if (this.isOpenRouter(options.baseUrl)) {
+      body.zdr = false;
+      body.provider = { require_parameters: true };
+    }
+
+    const response = await client.chat.completions.create(body as any);
 
     const choice = response.choices[0];
     return {
@@ -43,14 +48,20 @@ export class OpenAiCompatibleProvider extends BaseLlmProvider {
       baseURL: options.baseUrl,
     });
 
-    const stream = (await client.chat.completions.create({
+    const body: Record<string, unknown> = {
       model: options.model,
       messages: options.messages,
       temperature: options.temperature ?? 0.7,
       max_tokens: options.maxTokens ?? 4096,
       stream: true,
-      ...this.getOpenRouterExtra(options.baseUrl),
-    } as any)) as unknown as AsyncIterable<OpenAI.Chat.Completions.ChatCompletionChunk>;
+    };
+
+    if (this.isOpenRouter(options.baseUrl)) {
+      body.zdr = false;
+      body.provider = { require_parameters: true };
+    }
+
+    const stream = (await client.chat.completions.create(body as any)) as unknown as AsyncIterable<OpenAI.Chat.Completions.ChatCompletionChunk>;
 
     for await (const chunk of stream) {
       const content = chunk.choices[0]?.delta?.content;

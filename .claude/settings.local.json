@@ -32,7 +32,9 @@
       "Bash(npx vue-tsc:*)",
       "Bash(node:*)",
       "Bash(git rm:*)",
-      "Bash(kill 91578 97675)"
+      "Bash(kill 91578 97675)",
+      "Bash(npx nest:*)",
+      "Bash(xargs kill:*)"
     ]
   }
 }
