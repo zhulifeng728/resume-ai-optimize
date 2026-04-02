@@ -97,21 +97,27 @@
     </div>
 
     <!-- 版本内容对比弹窗 -->
-    <el-dialog v-model="versionDialogVisible" title="版本内容" width="760px" top="5vh">
+    <el-dialog v-model="versionDialogVisible" title="版本对比" width="95%" top="3vh">
       <div v-if="viewingVersion" class="version-diff">
         <div class="diff-meta">
           <el-tag size="small">v{{ viewingVersion.versionNumber }}</el-tag>
           <span>模型：{{ viewingVersion.aiModel }}</span>
           <span>{{ formatDate(viewingVersion.createdAt) }}</span>
         </div>
-        <el-tabs>
-          <el-tab-pane label="优化后内容">
-            <div class="version-text">{{ viewingVersion.content }}</div>
-          </el-tab-pane>
-          <el-tab-pane label="原始内容">
-            <div class="version-text">{{ resume?.originalText }}</div>
-          </el-tab-pane>
-        </el-tabs>
+        <div class="diff-container">
+          <div class="diff-panel">
+            <div class="diff-panel-title">
+              <span class="dot dot-red"></span> 原始简历
+            </div>
+            <div class="diff-content" v-html="originalDiffHtml"></div>
+          </div>
+          <div class="diff-panel">
+            <div class="diff-panel-title">
+              <span class="dot dot-green"></span> 优化后简历
+            </div>
+            <div class="diff-content" v-html="optimizedDiffHtml"></div>
+          </div>
+        </div>
       </div>
     </el-dialog>
   </div>
@@ -122,6 +128,7 @@ import { ref, computed, onMounted, watch, nextTick } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { ArrowLeft, Refresh } from '@element-plus/icons-vue';
 import { ElMessage } from 'element-plus';
+import { diffWords } from 'diff';
 import Vditor from 'vditor';
 import 'vditor/dist/index.css';
 import { marked } from 'marked';
@@ -257,6 +264,32 @@ function viewVersion(version: ResumeVersion) {
   versionDialogVisible.value = true;
 }
 
+function escapeHtml(text: string) {
+  return text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+const originalDiffHtml = computed(() => {
+  const orig = resume.value?.originalText || '';
+  const opt = viewingVersion.value?.content || '';
+  if (!orig || !opt) return escapeHtml(orig).replace(/\n/g, '<br>');
+  const changes = diffWords(orig, opt);
+  return changes.filter(p => !p.added).map(p => {
+    const e = escapeHtml(p.value).replace(/\n/g, '<br>');
+    return p.removed ? `<span class="diff-removed">${e}</span>` : e;
+  }).join('');
+});
+
+const optimizedDiffHtml = computed(() => {
+  const orig = resume.value?.originalText || '';
+  const opt = viewingVersion.value?.content || '';
+  if (!orig || !opt) return escapeHtml(opt).replace(/\n/g, '<br>');
+  const changes = diffWords(orig, opt);
+  return changes.filter(p => !p.removed).map(p => {
+    const e = escapeHtml(p.value).replace(/\n/g, '<br>');
+    return p.added ? `<span class="diff-added">${e}</span>` : e;
+  }).join('');
+});
+
 async function selectVersion(version: ResumeVersion) {
   try {
     await resumeApi.selectVersion(resumeId.value, version.id);
@@ -376,5 +409,71 @@ onMounted(async () => {
   padding: 16px;
   background: #f7f9fc;
   border-radius: 6px;
+}
+
+.diff-container {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+
+.diff-panel {
+  border: 1px solid #e8edf5;
+  border-radius: 10px;
+  overflow: hidden;
+  background: white;
+}
+
+.diff-panel-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 16px;
+  background: #f7f9fc;
+  border-bottom: 1px solid #e8edf5;
+  font-size: 14px;
+  font-weight: 600;
+  color: #37474f;
+}
+
+.dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.dot-red { background: #f56c6c; }
+.dot-green { background: #67c23a; }
+
+.diff-content {
+  padding: 16px;
+  font-size: 14px;
+  line-height: 1.9;
+  max-height: 600px;
+  overflow-y: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.diff-content :deep(.diff-added) {
+  background: #e6ffec;
+  color: #1a7f37;
+  padding: 1px 2px;
+  border-radius: 2px;
+}
+
+.diff-content :deep(.diff-removed) {
+  background: #ffebe9;
+  color: #cf222e;
+  text-decoration: line-through;
+  padding: 1px 2px;
+  border-radius: 2px;
+}
+
+@media (max-width: 768px) {
+  .diff-container {
+    grid-template-columns: 1fr;
+  }
 }
 </style>

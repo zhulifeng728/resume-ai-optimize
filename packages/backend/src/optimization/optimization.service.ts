@@ -79,19 +79,10 @@ export class OptimizationService {
       const messages = buildResumeOptimizePrompt(resumeText, jobDescription);
       const result = await this.aiGateway.complete(userId, apiKeyId, messages, { temperature: 0.7, maxTokens: 4096 });
 
-      let parsed: any;
-      try {
-        const jsonMatch = result.content.match(/\{[\s\S]*\}/);
-        parsed = jsonMatch ? JSON.parse(jsonMatch[0]) : { optimizedResume: result.content };
-      } catch {
-        parsed = { optimizedResume: result.content };
-      }
-
       await this.prisma.resumeVersion.update({
         where: { id: versionId },
         data: {
-          content: parsed.optimizedResume || result.content,
-          diffData: { sections: parsed.sections, matchScore: parsed.matchScore, suggestions: parsed.suggestions },
+          content: result.content,
           aiModel: result.model,
           status: OptimizationStatus.COMPLETED,
         },
