@@ -4,24 +4,24 @@ import { BaseLlmProvider, LlmCompletionOptions, LlmCompletionResult } from './ba
 
 @Injectable()
 export class OpenAiCompatibleProvider extends BaseLlmProvider {
+  private getOpenRouterExtra(baseUrl?: string): Record<string, unknown> {
+    if (!baseUrl?.includes('openrouter.ai')) return {};
+    return { zdr: false, provider_requirements: { does_train_prompts: true } };
+  }
+
   async complete(options: LlmCompletionOptions): Promise<LlmCompletionResult> {
     const client = new OpenAI({
       apiKey: options.apiKey,
       baseURL: options.baseUrl,
     });
 
-    const isOpenRouter = options.baseUrl?.includes('openrouter.ai');
-
     const response = await client.chat.completions.create({
       model: options.model,
       messages: options.messages,
       temperature: options.temperature ?? 0.7,
       max_tokens: options.maxTokens ?? 4096,
-      ...(isOpenRouter && {
-        zdr: false,
-        provider_requirements: { does_train_prompts: true },
-      } as any),
-    });
+      ...this.getOpenRouterExtra(options.baseUrl),
+    } as any);
 
     const choice = response.choices[0];
     return {
@@ -43,19 +43,14 @@ export class OpenAiCompatibleProvider extends BaseLlmProvider {
       baseURL: options.baseUrl,
     });
 
-    const isOpenRouter = options.baseUrl?.includes('openrouter.ai');
-
-    const stream = await client.chat.completions.create({
+    const stream = (await client.chat.completions.create({
       model: options.model,
       messages: options.messages,
       temperature: options.temperature ?? 0.7,
       max_tokens: options.maxTokens ?? 4096,
       stream: true,
-      ...(isOpenRouter && {
-        zdr: false,
-        provider_requirements: { does_train_prompts: true },
-      } as any),
-    });
+      ...this.getOpenRouterExtra(options.baseUrl),
+    } as any)) as unknown as AsyncIterable<OpenAI.Chat.Completions.ChatCompletionChunk>;
 
     for await (const chunk of stream) {
       const content = chunk.choices[0]?.delta?.content;
