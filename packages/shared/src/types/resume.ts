@@ -5,6 +5,13 @@ export enum ResumeStatus {
   PARSE_FAILED = 'PARSE_FAILED',
 }
 
+export enum OptimizationStatus {
+  PENDING = 'PENDING',
+  PROCESSING = 'PROCESSING',
+  COMPLETED = 'COMPLETED',
+  FAILED = 'FAILED',
+}
+
 export interface Resume {
   id: string;
   userId: string;
@@ -37,5 +44,7 @@ export interface ResumeVersion {
   aiModel: string;
   jobId: string | null;
   isSelected: boolean;
+  status: OptimizationStatus;
+  errorMessage: string | null;
   createdAt: Date;
 }

@@ -1,3 +1,5 @@
+import type { OptimizationStatus } from './resume';
+
 export interface ApiResponse<T = unknown> {
   code: number;
   message: string;
@@ -15,4 +17,9 @@ export interface PaginatedResponse<T> {
   page: number;
   limit: number;
   totalPages: number;
+}
+
+export interface OptimizationSubmitResult {
+  versionId: string;
+  status: OptimizationStatus;
 }
