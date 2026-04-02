@@ -5,34 +5,21 @@
       <p class="subtitle">基于真实职位描述，AI 帮你精准优化简历内容</p>
     </div>
 
-    <!-- 结果展示 -->
-    <template v-if="result">
-      <div class="result-header">
-        <div class="result-title">
-          <el-icon color="#67c23a" :size="22"><CircleCheckFilled /></el-icon>
-          <span>优化完成</span>
-        </div>
-        <div class="result-actions">
-          <el-button @click="resetForm">再优化一次</el-button>
-          <el-button type="primary" @click="$router.push({ name: 'resume-detail', params: { id: selectedResumeId } })">
-            查看简历版本
-          </el-button>
-        </div>
-      </div>
-      <div class="diff-container">
-        <div class="diff-panel">
-          <div class="diff-panel-title">
-            <span class="dot dot-red"></span> 原始简历
+    <!-- 提交成功提示 -->
+    <template v-if="submitted">
+      <el-card class="submitted-card">
+        <div class="submitted-content">
+          <el-icon color="#e6a23c" :size="40"><Loading /></el-icon>
+          <h3>优化任务已提交</h3>
+          <p>AI 正在后台处理，请稍后前往简历详情页查看结果。</p>
+          <div class="submitted-actions">
+            <el-button @click="resetForm">再提交一次</el-button>
+            <el-button type="primary" @click="$router.push({ name: 'resume-detail', params: { id: selectedResumeId } })">
+              查看简历版本
+            </el-button>
           </div>
-          <div class="diff-content" v-html="originalHtml"></div>
         </div>
-        <div class="diff-panel">
-          <div class="diff-panel-title">
-            <span class="dot dot-green"></span> 优化后简历
-          </div>
-          <div class="diff-content" v-html="optimizedHtml"></div>
-        </div>
-      </div>
+      </el-card>
     </template>
 
     <!-- 优化表单 -->
@@ -95,11 +82,11 @@
             type="primary"
             size="large"
             :disabled="!canSubmit"
-            :loading="optimizing"
+            :loading="submitting"
             style="width: 100%; margin-top: 24px"
             @click="startOptimization"
           >
-            {{ optimizing ? '正在优化中...' : '开始优化' }}
+            {{ submitting ? '提交中...' : '开始优化' }}
           </el-button>
         </el-form>
       </el-card>
@@ -110,15 +97,13 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
-import { CircleCheckFilled, Key } from '@element-plus/icons-vue';
+import { Loading, Key } from '@element-plus/icons-vue';
 import { ElMessage } from 'element-plus';
-import { diffWords } from 'diff';
 import { useResumeStore } from '@/stores/resume';
 import { useApiKeyStore } from '@/stores/api-key';
 import { jobApi } from '@/api/job';
 import { optimizationApi } from '@/api/optimization';
-import { resumeApi } from '@/api/resume';
-import type { OptimizationResult, ResumeVersion, Job } from '@resume-ai/shared';
+import type { Job } from '@resume-ai/shared';
 
 const route = useRoute();
 const router = useRouter();
@@ -131,10 +116,9 @@ const selectedJobId = ref('');
 const manualJd = ref('');
 const jobs = ref<Job[]>([]);
 const jobLoading = ref(false);
-const optimizing = ref(false);
-const result = ref<OptimizationResult | null>(null);
-const originalText = ref('');
-const optimizedText = ref('');
+const submitting = ref(false);
+const submitted = ref(false);
+const submittedVersionId = ref('');
 
 const activeKey = computed(() => apiKeyStore.apiKeys.find(k => k.isDefault) || apiKeyStore.apiKeys[0] || null);
 const activeKeyName = computed(() => activeKey.value ? `${activeKey.value.name} (${activeKey.value.provider})` : '');
@@ -145,64 +129,32 @@ const canSubmit = computed(() => {
   return manualJd.value.trim().length > 20;
 });
 
-function escapeHtml(text: string) {
-  return text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-}
-
-const originalHtml = computed(() => {
-  if (!originalText.value || !optimizedText.value) return escapeHtml(originalText.value).replace(/\n/g, '<br>');
-  const changes = diffWords(originalText.value, optimizedText.value);
-  return changes.filter(p => !p.added).map(p => {
-    const e = escapeHtml(p.value).replace(/\n/g, '<br>');
-    return p.removed ? `<span class="diff-removed">${e}</span>` : e;
-  }).join('');
-});
-
-const optimizedHtml = computed(() => {
-  if (!originalText.value || !optimizedText.value) return escapeHtml(optimizedText.value).replace(/\n/g, '<br>');
-  const changes = diffWords(originalText.value, optimizedText.value);
-  return changes.filter(p => !p.removed).map(p => {
-    const e = escapeHtml(p.value).replace(/\n/g, '<br>');
-    return p.added ? `<span class="diff-added">${e}</span>` : e;
-  }).join('');
-});
-
 async function startOptimization() {
   if (!activeKey.value) return;
-  optimizing.value = true;
+  submitting.value = true;
   try {
-    const resumeRes = await resumeApi.get(selectedResumeId.value);
-    originalText.value = resumeRes.data.originalText || '';
-
     let jobId = selectedJobId.value;
-    // 手动输入时先创建一个临时 job
     if (jdTab.value === 'manual') {
       const jobRes = await jobApi.create({ title: '手动输入职位', description: manualJd.value });
       jobId = jobRes.data.id;
     }
-
     const res = await optimizationApi.create({
       resumeId: selectedResumeId.value,
       jobId,
       apiKeyId: activeKey.value.id,
     });
-    result.value = res.data;
-
-    if (res.data.resumeVersionId) {
-      const versionsRes = await resumeApi.getVersions(selectedResumeId.value);
-      const version = versionsRes.data.find((v: ResumeVersion) => v.id === res.data.resumeVersionId);
-      if (version) optimizedText.value = version.content;
-    }
+    submittedVersionId.value = res.data.versionId;
+    submitted.value = true;
   } catch {
+    ElMessage.error('提交失败，请重试');
   } finally {
-    optimizing.value = false;
+    submitting.value = false;
   }
 }
 
 function resetForm() {
-  result.value = null;
-  originalText.value = '';
-  optimizedText.value = '';
+  submitted.value = false;
+  submittedVersionId.value = '';
 }
 
 watch(() => resumeStore.resumes, (resumes) => {
@@ -315,91 +267,35 @@ onMounted(async () => {
   text-decoration: none;
 }
 
-/* 结果区域 */
-.result-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 20px;
+.submitted-card {
+  border-radius: 12px;
 }
 
-.result-title {
+.submitted-content {
   display: flex;
+  flex-direction: column;
   align-items: center;
-  gap: 8px;
+  padding: 40px 20px;
+  gap: 12px;
+  text-align: center;
+}
+
+.submitted-content h3 {
+  margin: 0;
   font-size: 18px;
   font-weight: 600;
   color: #1a1a2e;
 }
 
-.result-actions {
+.submitted-content p {
+  margin: 0;
+  font-size: 14px;
+  color: #78909c;
+}
+
+.submitted-actions {
   display: flex;
   gap: 10px;
-}
-
-.diff-container {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 16px;
-}
-
-.diff-panel {
-  border: 1px solid #e8edf5;
-  border-radius: 10px;
-  overflow: hidden;
-  background: white;
-}
-
-.diff-panel-title {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 12px 16px;
-  background: #f7f9fc;
-  border-bottom: 1px solid #e8edf5;
-  font-size: 14px;
-  font-weight: 600;
-  color: #37474f;
-}
-
-.dot {
-  width: 10px;
-  height: 10px;
-  border-radius: 50%;
-  flex-shrink: 0;
-}
-
-.dot-red { background: #f56c6c; }
-.dot-green { background: #67c23a; }
-
-.diff-content {
-  padding: 16px;
-  font-size: 14px;
-  line-height: 1.9;
-  max-height: 600px;
-  overflow-y: auto;
-  white-space: pre-wrap;
-  word-break: break-word;
-}
-
-.diff-content :deep(.diff-added) {
-  background: #e6ffec;
-  color: #1a7f37;
-  padding: 1px 2px;
-  border-radius: 2px;
-}
-
-.diff-content :deep(.diff-removed) {
-  background: #ffebe9;
-  color: #cf222e;
-  text-decoration: line-through;
-  padding: 1px 2px;
-  border-radius: 2px;
-}
-
-@media (max-width: 768px) {
-  .diff-container {
-    grid-template-columns: 1fr;
-  }
+  margin-top: 8px;
 }
 </style>
