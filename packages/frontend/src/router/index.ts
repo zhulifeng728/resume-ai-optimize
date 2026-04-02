@@ -37,6 +37,24 @@ const routes: RouteRecordRaw[] = [
         meta: { title: '我的复习文档', requiresAuth: true }
       },
       {
+        path: 'my/jobs',
+        name: 'jobs',
+        component: () => import('@/views/job/JobListView.vue'),
+        meta: { title: '职位管理', requiresAuth: true }
+      },
+      {
+        path: 'my/jobs/new',
+        name: 'job-create',
+        component: () => import('@/views/job/JobFormView.vue'),
+        meta: { title: '新建职位', requiresAuth: true }
+      },
+      {
+        path: 'my/jobs/:id/edit',
+        name: 'job-edit',
+        component: () => import('@/views/job/JobFormView.vue'),
+        meta: { title: '编辑职位', requiresAuth: true }
+      },
+      {
         path: 'my/settings',
         name: 'my-settings',
         component: () => import('@/views/settings/SettingsView.vue'),

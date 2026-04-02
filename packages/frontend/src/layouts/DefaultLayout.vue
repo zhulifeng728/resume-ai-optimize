@@ -26,6 +26,7 @@
               <template #dropdown>
                 <el-dropdown-menu>
                   <el-dropdown-item command="my-resumes">我的简历</el-dropdown-item>
+                  <el-dropdown-item command="jobs">职位管理</el-dropdown-item>
                   <el-dropdown-item command="my-review-docs">我的复习文档</el-dropdown-item>
                   <el-dropdown-item command="my-settings">个人设置</el-dropdown-item>
                   <el-dropdown-item divided command="logout">退出登录</el-dropdown-item>
@@ -102,6 +103,9 @@ onUnmounted(() => {
 
 function handleCommand(command: string) {
   switch (command) {
+    case 'jobs':
+      router.push({ name: 'jobs' });
+      break;
     case 'my-resumes':
       router.push({ name: 'my-resumes' });
       break;

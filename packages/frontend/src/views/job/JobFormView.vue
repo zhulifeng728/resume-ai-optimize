@@ -2,49 +2,37 @@
   <div class="job-form-view">
     <div class="page-header">
       <el-button text @click="$router.push({ name: 'jobs' })">
-        <el-icon><ArrowLeft /></el-icon>
-        Back
+        <el-icon><ArrowLeft /></el-icon> 返回
       </el-button>
-      <h2>{{ isEdit ? 'Edit Job Description' : 'New Job Description' }}</h2>
+      <h2>{{ isEdit ? '编辑职位' : '新建职位' }}</h2>
     </div>
 
     <el-card v-loading="loadingJob">
-      <el-form
-        ref="formRef"
-        :model="form"
-        :rules="rules"
-        label-position="top"
-        style="max-width: 700px"
-      >
-        <el-form-item label="Title" prop="title">
-          <el-input v-model="form.title" placeholder="e.g. Senior Frontend Engineer" />
+      <el-form ref="formRef" :model="form" :rules="rules" label-position="top" style="max-width: 700px">
+        <el-form-item label="职位名称" prop="title">
+          <el-input v-model="form.title" placeholder="如：高级前端工程师" />
         </el-form-item>
-        <el-form-item label="Company" prop="company">
-          <el-input v-model="form.company" placeholder="e.g. Google" />
+        <el-form-item label="公司" prop="company">
+          <el-input v-model="form.company" placeholder="如：字节跳动" />
         </el-form-item>
-        <el-form-item label="Location" prop="location">
-          <el-input v-model="form.location" placeholder="e.g. San Francisco, CA" />
+        <el-form-item label="地点" prop="location">
+          <el-input v-model="form.location" placeholder="如：北京" />
         </el-form-item>
-        <el-form-item label="Salary" prop="salary">
-          <el-input v-model="form.salary" placeholder="e.g. $150k - $200k" />
+        <el-form-item label="薪资" prop="salary">
+          <el-input v-model="form.salary" placeholder="如：25k-40k" />
         </el-form-item>
-        <el-form-item label="Job Description" prop="description">
-          <el-input
-            v-model="form.description"
-            type="textarea"
-            :rows="16"
-            placeholder="Paste the full job description here..."
-          />
+        <el-form-item label="职位描述（JD）" prop="description">
+          <el-input v-model="form.description" type="textarea" :rows="16" placeholder="粘贴完整的职位描述..." />
         </el-form-item>
-        <el-form-item label="Source URL" prop="sourceUrl">
+        <el-form-item label="来源链接" prop="sourceUrl">
           <el-input v-model="form.sourceUrl" placeholder="https://..." />
         </el-form-item>
         <el-form-item>
           <div class="form-actions">
             <el-button type="primary" :loading="saving" @click="handleSave">
-              {{ isEdit ? 'Update' : 'Create' }}
+              {{ isEdit ? '保存修改' : '创建' }}
             </el-button>
-            <el-button @click="$router.push({ name: 'jobs' })">Cancel</el-button>
+            <el-button @click="$router.push({ name: 'jobs' })">取消</el-button>
           </div>
         </el-form-item>
       </el-form>
@@ -70,24 +58,16 @@ const formRef = ref<FormInstance>();
 const saving = ref(false);
 const loadingJob = ref(false);
 
-const form = ref({
-  title: '',
-  company: '',
-  location: '',
-  salary: '',
-  description: '',
-  sourceUrl: '',
-});
+const form = ref({ title: '', company: '', location: '', salary: '', description: '', sourceUrl: '' });
 
 const rules: FormRules = {
-  title: [{ required: true, message: 'Title is required', trigger: 'blur' }],
-  description: [{ required: true, message: 'Job description is required', trigger: 'blur' }],
+  title: [{ required: true, message: '请输入职位名称', trigger: 'blur' }],
+  description: [{ required: true, message: '请输入职位描述', trigger: 'blur' }],
 };
 
 async function handleSave() {
   const valid = await formRef.value?.validate().catch(() => false);
   if (!valid) return;
-
   saving.value = true;
   try {
     const data = {
@@ -98,18 +78,16 @@ async function handleSave() {
       description: form.value.description,
       sourceUrl: form.value.sourceUrl || undefined,
     };
-
     if (isEdit.value && jobId.value) {
       await jobStore.updateJob(jobId.value, data);
-      ElMessage.success('Job description updated.');
+      ElMessage.success('保存成功');
     } else {
       await jobStore.createJob(data);
-      ElMessage.success('Job description created.');
+      ElMessage.success('创建成功');
     }
     router.push({ name: 'jobs' });
-  } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : 'Save failed';
-    ElMessage.error(message);
+  } catch {
+    ElMessage.error('保存失败，请重试');
   } finally {
     saving.value = false;
   }
@@ -140,7 +118,9 @@ onMounted(async () => {
 
 <style scoped>
 .job-form-view {
-  padding: 24px;
+  padding: 32px;
+  max-width: 900px;
+  margin: 0 auto;
 }
 
 .page-header {
@@ -152,7 +132,9 @@ onMounted(async () => {
 
 .page-header h2 {
   margin: 0;
-  font-size: 24px;
+  font-size: 22px;
+  font-weight: 600;
+  color: #1a1a2e;
 }
 
 .form-actions {
