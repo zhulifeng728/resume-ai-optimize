@@ -10,11 +10,17 @@ export class OpenAiCompatibleProvider extends BaseLlmProvider {
       baseURL: options.baseUrl,
     });
 
+    const isOpenRouter = options.baseUrl?.includes('openrouter.ai');
+
     const response = await client.chat.completions.create({
       model: options.model,
       messages: options.messages,
       temperature: options.temperature ?? 0.7,
       max_tokens: options.maxTokens ?? 4096,
+      ...(isOpenRouter && {
+        zdr: false,
+        provider_requirements: { does_train_prompts: true },
+      } as any),
     });
 
     const choice = response.choices[0];
@@ -37,12 +43,18 @@ export class OpenAiCompatibleProvider extends BaseLlmProvider {
       baseURL: options.baseUrl,
     });
 
+    const isOpenRouter = options.baseUrl?.includes('openrouter.ai');
+
     const stream = await client.chat.completions.create({
       model: options.model,
       messages: options.messages,
       temperature: options.temperature ?? 0.7,
       max_tokens: options.maxTokens ?? 4096,
       stream: true,
+      ...(isOpenRouter && {
+        zdr: false,
+        provider_requirements: { does_train_prompts: true },
+      } as any),
     });
 
     for await (const chunk of stream) {
