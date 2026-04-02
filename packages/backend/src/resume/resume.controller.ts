@@ -48,7 +48,7 @@ export class ResumeController {
         },
       }),
       fileFilter: (_req, file, cb) => {
-        const allowed = ['.pdf', '.docx', '.doc', '.png', '.jpg', '.jpeg'];
+        const allowed = ['.md', '.pdf', '.docx', '.doc', '.png', '.jpg', '.jpeg'];
         const ext = extname(file.originalname).toLowerCase();
         if (allowed.includes(ext)) {
           cb(null, true);
@@ -65,10 +65,11 @@ export class ResumeController {
   ) {
     if (!file) throw new BadRequestException('File is required');
 
+    const originalName = Buffer.from(file.originalname, 'latin1').toString('utf8');
     const resume = await this.resumeService.createWithFile(
       userId,
-      title || file.originalname,
-      file.originalname,
+      title || originalName,
+      originalName,
       file.path,
     );
 
