@@ -27,6 +27,13 @@ enum LlmProvider {
   CUSTOM
 }
 
+enum OptimizationStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+}
+
 model User {
   id           String   @id @default(uuid())
   email        String   @unique
@@ -70,8 +77,10 @@ model ResumeVersion {
   versionNumber Int      @map("version_number")
   aiModel       String   @map("ai_model")
   jobId         String?  @map("job_id")
-  isSelected    Boolean  @default(false) @map("is_selected")
-  createdAt     DateTime @default(now()) @map("created_at")
+  isSelected    Boolean            @default(false) @map("is_selected")
+  status        OptimizationStatus @default(PENDING)
+  errorMessage  String?            @map("error_message") @db.Text
+  createdAt     DateTime           @default(now()) @map("created_at")
 
   resume     Resume      @relation(fields: [resumeId], references: [id], onDelete: Cascade)
   reviewDocs ReviewDoc[]
