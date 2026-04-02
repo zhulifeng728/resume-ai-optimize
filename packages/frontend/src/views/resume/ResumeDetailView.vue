@@ -29,25 +29,23 @@
           <template #header>
             <div class="card-header-row">
               <span class="card-header-title">简历内容</span>
-              <span v-if="!isEditing" class="char-count">{{ resume.originalText?.length || 0 }} 字</span>
             </div>
           </template>
-          <el-input
-            v-if="isEditing"
-            v-model="editText"
-            type="textarea"
-            :rows="22"
-            placeholder="输入简历内容..."
-          />
-          <div v-else class="resume-text">
-            {{ resume.originalText || '暂无内容' }}
+          <div v-if="isEditing" class="md-editor-wrap">
+            <div id="detail-md-editor"></div>
           </div>
+          <div v-else class="resume-markdown" v-html="renderedResume"></div>
         </el-card>
 
         <!-- AI 优化版本 -->
         <el-card class="versions-card">
           <template #header>
-            <span class="card-header-title">AI 优化版本</span>
+            <div class="card-header-row">
+              <span class="card-header-title">AI 优化版本</span>
+              <el-button text size="small" :loading="versionsRefreshing" @click="refreshVersions">
+                <el-icon><Refresh /></el-icon> 刷新
+              </el-button>
+            </div>
           </template>
           <div v-if="resumeStore.versions.length === 0" class="empty-tip">
             <el-empty description="暂无优化版本，点击「AI 优化」生成" :image-size="80" />
@@ -60,17 +58,29 @@
             <el-table-column label="创建时间" width="160">
               <template #default="{ row }">{{ formatDate(row.createdAt) }}</template>
             </el-table-column>
-            <el-table-column label="状态" width="100">
+            <el-table-column label="状态" width="140">
               <template #default="{ row }">
-                <el-tag v-if="row.isSelected" type="success" size="small">已采用</el-tag>
+                <el-tag v-if="row.status === 'PENDING'" type="info" size="small">等待中</el-tag>
+                <el-tag v-else-if="row.status === 'PROCESSING'" type="warning" size="small">处理中</el-tag>
+                <el-tag v-else-if="row.status === 'FAILED'" type="danger" size="small">失败</el-tag>
+                <template v-else>
+                  <el-tag v-if="row.isSelected" type="success" size="small">已采用</el-tag>
+                  <el-tag v-else type="primary" size="small">已完成</el-tag>
+                </template>
               </template>
             </el-table-column>
             <el-table-column label="操作" width="180">
               <template #default="{ row }">
-                <el-button text type="primary" size="small" @click="viewVersion(row)">查看对比</el-button>
-                <el-button v-if="!row.isSelected" text type="success" size="small" @click="selectVersion(row)">
-                  采用此版本
-                </el-button>
+                <el-button
+                  text type="primary" size="small"
+                  :disabled="row.status !== 'COMPLETED'"
+                  @click="viewVersion(row)"
+                >查看对比</el-button>
+                <el-button
+                  v-if="!row.isSelected && row.status === 'COMPLETED'"
+                  text type="success" size="small"
+                  @click="selectVersion(row)"
+                >采用此版本</el-button>
               </template>
             </el-table-column>
           </el-table>
@@ -100,15 +110,19 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue';
+import { ref, computed, onMounted, watch, nextTick } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
-import { ArrowLeft } from '@element-plus/icons-vue';
+import { ArrowLeft, Refresh } from '@element-plus/icons-vue';
 import { ElMessage } from 'element-plus';
+import Vditor from 'vditor';
+import 'vditor/dist/index.css';
+import { marked } from 'marked';
 import { useResumeStore } from '@/stores/resume';
 import { useApiKeyStore } from '@/stores/api-key';
 import { resumeApi } from '@/api/resume';
 import { reviewDocApi } from '@/api/review-doc';
-import { ResumeStatus, type ResumeVersion } from '@resume-ai/shared';
+import { ResumeStatus } from '@/constants/providers';
+import type { ResumeVersion } from '@resume-ai/shared';
 
 const route = useRoute();
 const router = useRouter();
@@ -121,16 +135,50 @@ const resume = computed(() => resumeStore.currentResume);
 const isEditing = ref(false);
 const saving = ref(false);
 const editText = ref('');
+let vditorInstance: Vditor | null = null;
+
+const renderedResume = computed(() =>
+  resume.value?.originalText ? marked(resume.value.originalText) : '<p style="color:#aaa">暂无内容</p>'
+);
+
+watch(isEditing, async (val) => {
+  if (val) {
+    await nextTick();
+    vditorInstance = new Vditor('detail-md-editor', {
+      height: 520,
+      mode: 'sv',
+      toolbarConfig: { pin: true },
+      cache: { enable: false },
+      after: () => {
+        vditorInstance?.setValue(editText.value);
+      },
+    });
+  } else {
+    vditorInstance?.destroy();
+    vditorInstance = null;
+  }
+});
 
 const versionDialogVisible = ref(false);
 const viewingVersion = ref<ResumeVersion | null>(null);
 const generatingDoc = ref(false);
+const versionsRefreshing = ref(false);
 
-const statusTagType = (status: ResumeStatus) => ({
-  [ResumeStatus.UPLOADED]: 'info',
-  [ResumeStatus.PARSING]: 'warning',
-  [ResumeStatus.PARSED]: 'success',
-  [ResumeStatus.PARSE_FAILED]: 'danger',
+async function refreshVersions() {
+  versionsRefreshing.value = true;
+  try {
+    await resumeStore.fetchVersions(resumeId.value);
+  } finally {
+    versionsRefreshing.value = false;
+  }
+}
+
+type TagType = 'success' | 'warning' | 'info' | 'danger' | 'primary';
+const statusTagType = (status: ResumeStatus): TagType => ({
+  [ResumeStatus.UPLOADED]: 'info' as TagType,
+  [ResumeStatus.PARSING]: 'warning' as TagType,
+  [ResumeStatus.PARSED]: 'success' as TagType,
+  [ResumeStatus.PARSE_FAILED]: 'danger' as TagType,
 }[status] || 'info');
 
 const statusLabel = (status: ResumeStatus) => ({
@@ -153,9 +201,10 @@ function cancelEdit() {
 }
 
 async function saveResume() {
+  const content = vditorInstance?.getValue() ?? editText.value;
   saving.value = true;
   try {
-    await resumeApi.update(resumeId.value, { originalText: editText.value });
+    await resumeApi.update(resumeId.value, { originalText: content });
     await resumeStore.fetchResume(resumeId.value);
     isEditing.value = false;
     ElMessage.success('保存成功');
@@ -262,12 +311,30 @@ onMounted(async () => {
   color: #aab4be;
 }
 
-.resume-text {
-  white-space: pre-wrap;
+.resume-markdown {
   line-height: 1.9;
   font-size: 14px;
   color: #37474f;
   min-height: 200px;
+}
+
+.resume-markdown :deep(h1),
+.resume-markdown :deep(h2),
+.resume-markdown :deep(h3) {
+  margin: 16px 0 8px;
+  font-weight: 600;
+  color: #1a1a2e;
+}
+
+.resume-markdown :deep(h2) { font-size: 16px; border-bottom: 1px solid #e8edf5; padding-bottom: 6px; }
+.resume-markdown :deep(ul) { padding-left: 20px; }
+.resume-markdown :deep(li) { margin: 4px 0; }
+.resume-markdown :deep(p) { margin: 6px 0; }
+
+.md-editor-wrap {
+  border: 1px solid #dcdfe6;
+  border-radius: 4px;
+  overflow: hidden;
 }
 
 .empty-tip {
