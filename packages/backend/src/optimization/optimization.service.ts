@@ -77,7 +77,8 @@ export class OptimizationService {
     let current: string[] = [];
 
     for (const line of lines) {
-      if (/^#{1,3}\s/.test(line) && current.length > 0) {
+      // 只在遇到 # 或 ## 标题时切分，### 及以下保持在当前章节
+      if (/^#{1,2}\s/.test(line) && current.length > 0) {
         sections.push(current.join('\n').trim());
         current = [line];
       } else {
