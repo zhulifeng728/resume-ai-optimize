@@ -17,7 +17,7 @@ export class OptimizationService {
     private jobService: JobService,
   ) {}
 
-  async optimize(userId: string, resumeId: string, jobId: string, apiKeyId: string, splitBySections = false) {
+  async optimize(userId: string, resumeId: string, jobId: string, apiKeyId: string, splitBySections = false, sections?: string[]) {
     const resume = await this.resumeService.findOne(userId, resumeId);
     const job = await this.jobService.findOne(userId, jobId);
 
@@ -42,11 +42,20 @@ export class OptimizationService {
     });
 
     setImmediate(() =>
-      this._runOptimization(version.id, userId, apiKeyId, resume.originalText!, job.description, splitBySections)
+      this._runOptimization(version.id, userId, apiKeyId, resume.originalText!, job.description, splitBySections, sections)
         .catch(err => this.logger.error('Unhandled optimization error', err))
     );
 
     return { versionId: version.id, status: OptimizationStatus.PENDING };
+  }
+
+  async previewSections(userId: string, resumeId: string) {
+    const resume = await this.resumeService.findOne(userId, resumeId);
+    if (!resume.originalText) {
+      throw new BadRequestException('Resume has no text content.');
+    }
+    const sections = this.splitSections(resume.originalText);
+    return { sections };
   }
 
   async cancel(userId: string, versionId: string) {
@@ -88,6 +97,7 @@ export class OptimizationService {
     resumeText: string,
     jobDescription: string,
     splitBySections: boolean,
+    customSections?: string[],
   ) {
     try {
       await this.prisma.resumeVersion.update({
@@ -98,7 +108,10 @@ export class OptimizationService {
       let optimizedContent: string;
 
       if (splitBySections) {
-        const sections = this.splitSections(resumeText);
+        // 用用户编辑后的章节，或自动拆分
+        const sections = customSections && customSections.length > 0
+          ? customSections
+          : this.splitSections(resumeText);
         this.logger.log(`Split into ${sections.length} sections`);
         const optimizedSections: string[] = [];
 

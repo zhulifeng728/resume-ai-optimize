@@ -38,6 +38,7 @@ export const optimizationRequestSchema = z.object({
   jobId: z.string().uuid(),
   apiKeyId: z.string().uuid(),
   splitBySections: z.boolean().optional(),
+  sections: z.array(z.string()).optional(),
 });
 
 export const createReviewDocSchema = z.object({

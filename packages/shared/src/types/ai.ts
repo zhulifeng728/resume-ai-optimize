@@ -25,6 +25,7 @@ export interface OptimizationRequest {
   jobId: string;
   apiKeyId: string;
   splitBySections?: boolean;
+  sections?: string[];
 }
 
 export interface OptimizationResult {

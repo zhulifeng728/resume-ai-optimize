@@ -13,9 +13,17 @@ export class OptimizationController {
   async create(
     @CurrentUser('id') userId: string,
     @Body(new ZodValidationPipe(optimizationRequestSchema))
-    body: { resumeId: string; jobId: string; apiKeyId: string; splitBySections?: boolean },
+    body: { resumeId: string; jobId: string; apiKeyId: string; splitBySections?: boolean; sections?: string[] },
   ) {
-    return this.optimizationService.optimize(userId, body.resumeId, body.jobId, body.apiKeyId, body.splitBySections);
+    return this.optimizationService.optimize(userId, body.resumeId, body.jobId, body.apiKeyId, body.splitBySections, body.sections);
+  }
+
+  @Post('preview-sections')
+  async previewSections(
+    @CurrentUser('id') userId: string,
+    @Body() body: { resumeId: string },
+  ) {
+    return this.optimizationService.previewSections(userId, body.resumeId);
   }
 
   @Patch('versions/:versionId/cancel')

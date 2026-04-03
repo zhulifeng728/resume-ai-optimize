@@ -5,7 +5,7 @@
       <p class="subtitle">基于真实职位描述，AI 帮你精准优化简历内容</p>
     </div>
 
-    <!-- 提交成功提示 -->
+    <!-- 提交成功 -->
     <template v-if="submitted">
       <el-card class="submitted-card">
         <div class="submitted-content">
@@ -18,6 +18,37 @@
               查看简历版本
             </el-button>
           </div>
+        </div>
+      </el-card>
+    </template>
+
+    <!-- 章节预览/编辑 -->
+    <template v-else-if="previewMode">
+      <el-card class="form-card">
+        <div class="preview-header">
+          <div>
+            <div class="preview-title">章节预览</div>
+            <div class="preview-desc">共 {{ sections.length }} 个章节，可编辑后再提交给 AI 优化</div>
+          </div>
+          <el-button @click="previewMode = false">返回修改</el-button>
+        </div>
+
+        <div class="sections-list">
+          <div v-for="(section, index) in sections" :key="index" class="section-item">
+            <div class="section-index">章节 {{ index + 1 }}</div>
+            <el-input
+              v-model="sections[index]"
+              type="textarea"
+              :autosize="{ minRows: 3, maxRows: 20 }"
+            />
+          </div>
+        </div>
+
+        <div class="preview-actions">
+          <el-button @click="previewMode = false">返回</el-button>
+          <el-button type="primary" :loading="submitting" @click="submitWithSections">
+            {{ submitting ? '提交中...' : '确认提交优化' }}
+          </el-button>
         </div>
       </el-card>
     </template>
@@ -42,8 +73,7 @@
             <div class="step-label"><span class="step-num">2</span> 目标职位描述</div>
             <el-tabs v-model="jdTab" class="jd-tabs">
               <el-tab-pane label="从已保存的职位选择" name="saved">
-                <el-select v-model="selectedJobId" placeholder="选择一个职位" style="width: 100%" filterable
-                  :loading="jobLoading">
+                <el-select v-model="selectedJobId" placeholder="选择一个职位" style="width: 100%" filterable :loading="jobLoading">
                   <el-option
                     v-for="j in jobs"
                     :key="j.id"
@@ -56,12 +86,7 @@
                 </div>
               </el-tab-pane>
               <el-tab-pane label="手动输入 JD" name="manual">
-                <el-input
-                  v-model="manualJd"
-                  type="textarea"
-                  :rows="8"
-                  placeholder="粘贴职位描述（JD）内容..."
-                />
+                <el-input v-model="manualJd" type="textarea" :rows="8" placeholder="粘贴职位描述（JD）内容..." />
               </el-tab-pane>
             </el-tabs>
           </div>
@@ -92,11 +117,11 @@
             type="primary"
             size="large"
             :disabled="!canSubmit"
-            :loading="submitting"
+            :loading="previewing || submitting"
             style="width: 100%; margin-top: 24px"
-            @click="startOptimization"
+            @click="handleStart"
           >
-            {{ submitting ? '提交中...' : '开始优化' }}
+            {{ previewing ? '加载章节...' : (submitting ? '提交中...' : (splitBySections ? '预览章节' : '开始优化')) }}
           </el-button>
         </el-form>
       </el-card>
@@ -127,9 +152,13 @@ const manualJd = ref('');
 const jobs = ref<Job[]>([]);
 const jobLoading = ref(false);
 const submitting = ref(false);
+const previewing = ref(false);
 const submitted = ref(false);
-const submittedVersionId = ref('');
 const splitBySections = ref(false);
+const previewMode = ref(false);
+const sections = ref<string[]>([]);
+// 保存创建好的 jobId，预览后提交时复用
+const resolvedJobId = ref('');
 
 const activeKey = computed(() => apiKeyStore.apiKeys.find(k => k.isDefault) || apiKeyStore.apiKeys[0] || null);
 const activeKeyName = computed(() => activeKey.value ? `${activeKey.value.name} (${activeKey.value.provider})` : '');
@@ -140,22 +169,61 @@ const canSubmit = computed(() => {
   return manualJd.value.trim().length > 20;
 });
 
-async function startOptimization() {
+async function resolveJobId(): Promise<string> {
+  if (jdTab.value === 'manual') {
+    const jobRes = await jobApi.create({ title: '手动输入职位', description: manualJd.value });
+    return jobRes.data.id;
+  }
+  return selectedJobId.value;
+}
+
+async function handleStart() {
+  if (!activeKey.value) return;
+
+  if (splitBySections.value) {
+    // 先预览章节
+    previewing.value = true;
+    try {
+      resolvedJobId.value = await resolveJobId();
+      const res = await optimizationApi.previewSections(selectedResumeId.value);
+      sections.value = res.data.sections;
+      previewMode.value = true;
+    } catch {
+      ElMessage.error('获取章节失败，请重试');
+    } finally {
+      previewing.value = false;
+    }
+  } else {
+    // 直接提交
+    submitting.value = true;
+    try {
+      const jobId = await resolveJobId();
+      const res = await optimizationApi.create({
+        resumeId: selectedResumeId.value,
+        jobId,
+        apiKeyId: activeKey.value!.id,
+      });
+      submitted.value = true;
+      void res;
+    } catch {
+      ElMessage.error('提交失败，请重试');
+    } finally {
+      submitting.value = false;
+    }
+  }
+}
+
+async function submitWithSections() {
   if (!activeKey.value) return;
   submitting.value = true;
   try {
-    let jobId = selectedJobId.value;
-    if (jdTab.value === 'manual') {
-      const jobRes = await jobApi.create({ title: '手动输入职位', description: manualJd.value });
-      jobId = jobRes.data.id;
-    }
-    const res = await optimizationApi.create({
+    await optimizationApi.create({
       resumeId: selectedResumeId.value,
-      jobId,
+      jobId: resolvedJobId.value,
       apiKeyId: activeKey.value.id,
-      splitBySections: splitBySections.value,
+      splitBySections: true,
+      sections: sections.value,
     });
-    submittedVersionId.value = res.data.versionId;
     submitted.value = true;
   } catch {
     ElMessage.error('提交失败，请重试');
@@ -166,7 +234,9 @@ async function startOptimization() {
 
 function resetForm() {
   submitted.value = false;
-  submittedVersionId.value = '';
+  previewMode.value = false;
+  sections.value = [];
+  resolvedJobId.value = '';
 }
 
 watch(() => resumeStore.resumes, (resumes) => {
@@ -179,7 +249,6 @@ onMounted(async () => {
     resumeStore.fetchResumes(1, 100),
     apiKeyStore.fetchApiKeys(),
   ]);
-  // 加载职位列表
   jobLoading.value = true;
   try {
     const res = await jobApi.list({ page: 1, limit: 100 });
@@ -246,9 +315,7 @@ onMounted(async () => {
   flex-shrink: 0;
 }
 
-.jd-tabs {
-  margin-top: 0;
-}
+.jd-tabs { margin-top: 0; }
 
 .tip-text {
   font-size: 13px;
@@ -256,9 +323,7 @@ onMounted(async () => {
   margin-top: 8px;
 }
 
-.tip-text a, .tip-text router-link {
-  color: #3669EC;
-}
+.tip-text a { color: #3669EC; }
 
 .api-key-hint {
   display: flex;
@@ -279,9 +344,65 @@ onMounted(async () => {
   text-decoration: none;
 }
 
-.submitted-card {
-  border-radius: 12px;
+/* 章节预览 */
+.preview-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 24px;
 }
+
+.preview-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: #1a1a2e;
+  margin-bottom: 4px;
+}
+
+.preview-desc {
+  font-size: 13px;
+  color: #78909c;
+}
+
+.sections-list {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+.section-item {
+  border: 1px solid #e8edf5;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.section-index {
+  padding: 8px 14px;
+  background: #f7f9fc;
+  border-bottom: 1px solid #e8edf5;
+  font-size: 12px;
+  font-weight: 600;
+  color: #78909c;
+}
+
+.section-item :deep(.el-textarea__inner) {
+  border: none;
+  border-radius: 0;
+  font-family: monospace;
+  font-size: 13px;
+  line-height: 1.7;
+  padding: 12px 14px;
+}
+
+.preview-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+/* 提交成功 */
+.submitted-card { border-radius: 12px; }
 
 .submitted-content {
   display: flex;
