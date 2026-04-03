@@ -77,7 +77,7 @@ export class OptimizationService {
       });
 
       const messages = buildResumeOptimizePrompt(resumeText, jobDescription);
-      const result = await this.aiGateway.complete(userId, apiKeyId, messages, { temperature: 0.7, maxTokens: 4096 });
+      const result = await this.aiGateway.complete(userId, apiKeyId, messages, { temperature: 0.7, maxTokens: 16384 });
 
       await this.prisma.resumeVersion.update({
         where: { id: versionId },
