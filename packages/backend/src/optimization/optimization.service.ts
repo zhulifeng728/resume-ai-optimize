@@ -43,7 +43,7 @@ export class OptimizationService {
 
     setImmediate(() =>
       this._runOptimization(version.id, userId, apiKeyId, resume.originalText!, job.description, splitBySections, sections)
-        .catch(err => this.logger.error('Unhandled optimization error', err))
+        .catch((err: any) => this.logger.error('Unhandled optimization error', err))
     );
 
     return { versionId: version.id, status: OptimizationStatus.PENDING };
@@ -54,8 +54,7 @@ export class OptimizationService {
     if (!resume.originalText) {
       throw new BadRequestException('Resume has no text content.');
     }
-    const sections = this.splitSections(resume.originalText);
-    return { sections };
+    return { sections: this.splitSections(resume.originalText) };
   }
 
   async cancel(userId: string, versionId: string) {
@@ -72,7 +71,6 @@ export class OptimizationService {
     });
   }
 
-  // 按 Markdown 标题（## 或 ###）拆分章节
   private splitSections(text: string): string[] {
     const lines = text.split('\n');
     const sections: string[] = [];
@@ -108,7 +106,6 @@ export class OptimizationService {
       let optimizedContent: string;
 
       if (splitBySections) {
-        // 用用户编辑后的章节，或自动拆分
         const sections = customSections && customSections.length > 0
           ? customSections
           : this.splitSections(resumeText);
@@ -166,125 +163,6 @@ export class OptimizationService {
       yield chunk;
     }
 
-    const lastVersion = await this.prisma.resumeVersion.findFirst({
-      where: { resumeId },
-      orderBy: { versionNumber: 'desc' },
-    });
-
-    await this.prisma.resumeVersion.create({
-      data: {
-        resumeId,
-        content: fullContent,
-        versionNumber: (lastVersion?.versionNumber || 0) + 1,
-        aiModel: 'streamed',
-        jobId,
-        status: OptimizationStatus.COMPLETED,
-      },
-    });
-  }
-}
-
-    const resume = await this.resumeService.findOne(userId, resumeId);
-    const job = await this.jobService.findOne(userId, jobId);
-
-    if (!resume.originalText) {
-      throw new BadRequestException('Resume has no text content. Please parse or enter text first.');
-    }
-
-    const lastVersion = await this.prisma.resumeVersion.findFirst({
-      where: { resumeId },
-      orderBy: { versionNumber: 'desc' },
-    });
-
-    const version = await this.prisma.resumeVersion.create({
-      data: {
-        resumeId,
-        content: '',
-        versionNumber: (lastVersion?.versionNumber || 0) + 1,
-        aiModel: 'pending',
-        jobId,
-        status: OptimizationStatus.PENDING,
-      },
-    });
-
-    setImmediate(() =>
-      this._runOptimization(version.id, userId, apiKeyId, resume.originalText!, job.description)
-        .catch(err => this.logger.error('Unhandled optimization error', err))
-    );
-
-    return { versionId: version.id, status: OptimizationStatus.PENDING };
-  }
-
-  async cancel(userId: string, versionId: string) {
-    const version = await this.prisma.resumeVersion.findFirst({
-      where: { id: versionId, resume: { userId } },
-    });
-    if (!version) throw new BadRequestException('Version not found');
-    if (version.status !== OptimizationStatus.PENDING && version.status !== OptimizationStatus.PROCESSING) {
-      throw new BadRequestException('Only PENDING or PROCESSING tasks can be cancelled');
-    }
-    return this.prisma.resumeVersion.update({
-      where: { id: versionId },
-      data: { status: OptimizationStatus.CANCELLED },
-    });
-  }
-
-  private async _runOptimization(
-    versionId: string,
-    userId: string,
-    apiKeyId: string,
-    resumeText: string,
-    jobDescription: string,
-  ) {
-    try {
-      await this.prisma.resumeVersion.update({
-        where: { id: versionId },
-        data: { status: OptimizationStatus.PROCESSING },
-      });
-
-      const messages = buildResumeOptimizePrompt(resumeText, jobDescription);
-      this.logger.log(`Input: resume_length=${resumeText.length}, jd_length=${jobDescription.length}, total_chars=${resumeText.length + jobDescription.length}`);
-      const result = await this.aiGateway.complete(userId, apiKeyId, messages, { temperature: 0.7, maxTokens: 16384 });
-
-      this.logger.log(`AI result: model=${result.model}, content_length=${result.content.length}, usage=${JSON.stringify(result.usage)}`);
-      this.logger.log(`Content tail: ${result.content.slice(-200)}`);
-
-      await this.prisma.resumeVersion.update({
-        where: { id: versionId },
-        data: {
-          content: result.content,
-          aiModel: result.model,
-          status: OptimizationStatus.COMPLETED,
-        },
-      });
-    } catch (err: any) {
-      await this.prisma.resumeVersion.update({
-        where: { id: versionId },
-        data: {
-          status: OptimizationStatus.FAILED,
-          errorMessage: err?.message || 'Unknown error',
-        },
-      });
-    }
-  }
-
-  async *optimizeStream(userId: string, resumeId: string, jobId: string, apiKeyId: string): AsyncIterable<string> {
-    const resume = await this.resumeService.findOne(userId, resumeId);
-    const job = await this.jobService.findOne(userId, jobId);
-
-    if (!resume.originalText) {
-      throw new BadRequestException('Resume has no text content');
-    }
-
-    const messages = buildResumeOptimizePrompt(resume.originalText, job.description);
-
-    let fullContent = '';
-    for await (const chunk of this.aiGateway.completeStream(userId, apiKeyId, messages, { temperature: 0.7, maxTokens: 4096 })) {
-      fullContent += chunk;
-      yield chunk;
-    }
-
-    // Save the completed version
     const lastVersion = await this.prisma.resumeVersion.findFirst({
       where: { resumeId },
       orderBy: { versionNumber: 'desc' },
