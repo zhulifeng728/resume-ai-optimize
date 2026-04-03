@@ -34,7 +34,8 @@
       "Bash(git rm:*)",
       "Bash(kill 91578 97675)",
       "Bash(npx nest:*)",
-      "Bash(xargs kill:*)"
+      "Bash(xargs kill:*)",
+      "WebFetch(domain:openrouter.ai)"
     ]
   }
 }

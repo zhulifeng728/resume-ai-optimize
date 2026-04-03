@@ -24,6 +24,7 @@ export interface OptimizationRequest {
   resumeId: string;
   jobId: string;
   apiKeyId: string;
+  splitBySections?: boolean;
 }
 
 export interface OptimizationResult {

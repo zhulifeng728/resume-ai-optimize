@@ -37,6 +37,7 @@ export const optimizationRequestSchema = z.object({
   resumeId: z.string().uuid(),
   jobId: z.string().uuid(),
   apiKeyId: z.string().uuid(),
+  splitBySections: z.boolean().optional(),
 });
 
 export const createReviewDocSchema = z.object({

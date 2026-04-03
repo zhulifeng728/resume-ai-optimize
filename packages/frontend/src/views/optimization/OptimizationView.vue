@@ -66,6 +66,16 @@
             </el-tabs>
           </div>
 
+          <!-- Step 3: 优化选项 -->
+          <div class="step-section">
+            <div class="step-label"><span class="step-num">3</span> 优化选项</div>
+            <el-switch
+              v-model="splitBySections"
+              active-text="按章节分段优化（适合长简历，避免内容截断）"
+              inactive-text="整体优化"
+            />
+          </div>
+
           <!-- API Key 提示 -->
           <div class="api-key-hint" v-if="activeKeyName">
             <el-icon><Key /></el-icon>
@@ -119,6 +129,7 @@ const jobLoading = ref(false);
 const submitting = ref(false);
 const submitted = ref(false);
 const submittedVersionId = ref('');
+const splitBySections = ref(false);
 
 const activeKey = computed(() => apiKeyStore.apiKeys.find(k => k.isDefault) || apiKeyStore.apiKeys[0] || null);
 const activeKeyName = computed(() => activeKey.value ? `${activeKey.value.name} (${activeKey.value.provider})` : '');
@@ -142,6 +153,7 @@ async function startOptimization() {
       resumeId: selectedResumeId.value,
       jobId,
       apiKeyId: activeKey.value.id,
+      splitBySections: splitBySections.value,
     });
     submittedVersionId.value = res.data.versionId;
     submitted.value = true;

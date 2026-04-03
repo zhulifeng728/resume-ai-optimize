@@ -13,9 +13,9 @@ export class OptimizationController {
   async create(
     @CurrentUser('id') userId: string,
     @Body(new ZodValidationPipe(optimizationRequestSchema))
-    body: { resumeId: string; jobId: string; apiKeyId: string },
+    body: { resumeId: string; jobId: string; apiKeyId: string; splitBySections?: boolean },
   ) {
-    return this.optimizationService.optimize(userId, body.resumeId, body.jobId, body.apiKeyId);
+    return this.optimizationService.optimize(userId, body.resumeId, body.jobId, body.apiKeyId, body.splitBySections);
   }
 
   @Patch('versions/:versionId/cancel')
